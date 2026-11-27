@@ -75,6 +75,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.watermeter.app.BuildConfig
 import com.watermeter.app.data.BillingPeriod
 import com.watermeter.app.data.IdSource
 import com.watermeter.app.data.Meter
@@ -231,7 +232,12 @@ private fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Water Meter") },
+                title = {
+                    Column {
+                        Text("Water Meter")
+                        Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
                 actions = {
                     IconButton(onClick = onMeters) { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Meters") }
                     IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
@@ -562,6 +568,8 @@ private fun SettingsScreen(state: AppState, onDone: () -> Unit) {
                     "or tap the pencil next to a meter's name.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
 
             HorizontalDivider()
             Button(enabled = price != null, onClick = {

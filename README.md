@@ -21,7 +21,7 @@ All data stays on the phone (SQLite database plus photos in app storage).
 
 ## Install
 
-Every push builds a debug APK with GitHub Actions. Open the **Actions** tab, pick the latest successful *Build* run, and download the `water-meter-debug-apk` artifact. Unzip it, copy `app-debug.apk` to the phone and open it (allow installing from unknown sources when asked).
+Every push builds a debug APK with GitHub Actions. Open the **Actions** tab, pick the latest successful *Build* run, and download the `water-meter-vX.Y.Z` artifact (the last number is the build number and goes up with every build). Unzip it, copy the `.apk` to the phone and open it (allow installing from unknown sources when asked). The installed version is shown under the app title and at the bottom of Settings.
 
 ## Build locally
 

@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Every CI build gets its own number so builds can be told apart: 0.3.<run number>.
+val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+val appVersion = (project.findProperty("appVersion") as String?) ?: "0.0"
+
 android {
     namespace = "com.watermeter.app"
     compileSdk = 35
@@ -12,8 +16,8 @@ android {
         applicationId = "com.watermeter.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 100 + buildNumber
+        versionName = "$appVersion.$buildNumber"
     }
 
     buildTypes {
@@ -30,6 +34,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
