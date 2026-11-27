@@ -105,7 +105,7 @@ internal fun MetersScreen(state: AppState, onDone: () -> Unit) {
 }
 
 @Composable
-private fun MeterEditDialog(
+internal fun MeterEditDialog(
     meter: Meter,
     canDelete: Boolean,
     onDismiss: () -> Unit,

@@ -9,7 +9,11 @@ An Android app for keeping track of the house water meter.
   - scans the **barcode** on the meter label and picks the matching meter. If the barcode is covered or unreadable it falls back to the **printed serial number**, or you pick the meter yourself. A barcode it hasn't seen before can be saved to a meter with one tap.
   - reads the **counter digits** and fills in the reading for you to check. Black wheels are kilolitres, red wheels go after the decimal point. Photos taken sideways or upside down work too.
   - warns you if the photo looks like a different meter from the one selected, or the reading is lower than the previous one.
-- **Usage so far this month**, per meter: water used this calendar month (kL and litres), average per day, usage since the previous reading, and since the last submission.
+- **Billing period.** Usage is worked out per billing period, which runs from a start day to an end day of the next month (default the 8th to the 9th, set in *Settings*). Use the arrows to look at earlier periods.
+- **Readings table**, per meter: date and time of each reading, the meter value, kL used since the previous reading, the days and hours in between, kL per day and the cost. A totals row shows the whole period.
+- **Price per kL** (set in *Settings*) is used for the cost of every reading and period, plus a projected cost for the current period.
+- **One chart for all meters**: water used so far in the period, a coloured line per meter.
+- Rename a meter by tapping the pencil next to its name, or under *Meters*.
 - **Monthly submission date.** In *Settings* choose the day of the month (1–31; in shorter months it falls on the last day) and the time of the reminder.
 - **Submission reminder.** On that day you get a notification, and opening the app shows a pop-up listing the latest reading of every meter. Nothing is sent automatically: use *Share readings and photos* to send them via email, WhatsApp or your municipality's app, then tap *Mark as submitted*. Until you do, the reminder repeats daily.
 

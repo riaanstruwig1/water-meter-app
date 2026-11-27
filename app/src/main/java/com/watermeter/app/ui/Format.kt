@@ -21,3 +21,21 @@ fun fmtWhen(millis: Long): String = Schedule.toLocal(millis).format(dateTimeFmt)
 /** Accepts both "1234.5" and "1234,5". */
 fun parseReading(text: String): Double? =
     text.trim().replace(" ", "").replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
+
+/** "3d 4h", "5h 20m" or "12m". */
+fun fmtDuration(millis: Long): String {
+    val totalMin = millis / 60_000
+    val d = totalMin / (60 * 24)
+    val h = (totalMin / 60) % 24
+    val m = totalMin % 60
+    return when {
+        d > 0 -> "${d}d ${h}h"
+        h > 0 -> "${h}h ${m}m"
+        else -> "${m}m"
+    }
+}
+
+fun fmtMoney(amount: Double, currency: String): String =
+    currency + String.format(Locale.getDefault(), " %,.2f", amount)
+
+fun fmtKl(kl: Double): String = String.format(Locale.getDefault(), "%.3f", kl)

@@ -19,6 +19,58 @@ data class MonthUsage(
     val latest: Reading?,
 )
 
+/** Usage between two readings, or over a period. */
+data class RangeUsage(
+    val usedKl: Double?,
+    val perDayKl: Double?,
+    /** Time between the baseline and latest reading, millis. */
+    val spanMillis: Long,
+    val baseline: Reading?,
+    val latest: Reading?,
+)
+
+/** One reading and what changed since the previous one. */
+data class Interval(
+    val reading: Reading,
+    val previous: Reading?,
+    val usedKl: Double?,
+    val spanMillis: Long?,
+    val perDayKl: Double?,
+)
+
+/**
+ * A billing period: from [startDay] of one month to [endDay] of the next (both inclusive),
+ * e.g. 8 Nov to 9 Dec. Days past the end of a short month fall on its last day.
+ */
+data class BillingPeriod(val start: LocalDate, val endInclusive: LocalDate) {
+    fun startMillis(zone: ZoneId = ZoneId.systemDefault()) =
+        start.atStartOfDay(zone).toInstant().toEpochMilli()
+
+    fun endMillisExclusive(zone: ZoneId = ZoneId.systemDefault()) =
+        endInclusive.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+    val lengthDays: Long get() = endInclusive.toEpochDay() - start.toEpochDay() + 1
+
+    companion object {
+        private fun day(month: YearMonth, d: Int) = month.atDay(d.coerceIn(1, month.lengthOfMonth()))
+
+        /** The period that starts in [startMonth]. */
+        fun startingIn(startMonth: YearMonth, startDay: Int, endDay: Int) =
+            BillingPeriod(day(startMonth, startDay), day(startMonth.plusMonths(1), endDay))
+
+        /** The period containing [date]: the latest period whose start is on or before it. */
+        fun containing(date: LocalDate, startDay: Int, endDay: Int): BillingPeriod {
+            val month = YearMonth.from(date)
+            val thisStart = day(month, startDay)
+            val startMonth = if (date.isBefore(thisStart)) month.minusMonths(1) else month
+            return startingIn(startMonth, startDay, endDay)
+        }
+    }
+
+    fun next(startDay: Int, endDay: Int) = startingIn(YearMonth.from(start).plusMonths(1), startDay, endDay)
+    fun previous(startDay: Int, endDay: Int) = startingIn(YearMonth.from(start).minusMonths(1), startDay, endDay)
+}
+
 object Usage {
 
     /**
@@ -61,6 +113,39 @@ object Usage {
         val days = (latest.timestamp - baseline.timestamp) / 86_400_000.0
         val perDay = if (days >= 0.5) used / days else null
         return MonthUsage(month, used, perDay, baseline, latest)
+    }
+
+    /**
+     * Water used between [startMillis] (inclusive) and [endMillis] (exclusive): latest reading in
+     * the range minus the last reading before it (or the first reading in it, if there is none).
+     */
+    fun forRange(readings: List<Reading>, startMillis: Long, endMillis: Long): RangeUsage {
+        val sorted = readings.sortedBy { it.timestamp }
+        val inRange = sorted.filter { it.timestamp in startMillis until endMillis }
+        val latest = inRange.lastOrNull()
+        val baseline = sorted.lastOrNull { it.timestamp < startMillis } ?: inRange.firstOrNull()
+        if (latest == null || baseline == null || latest.id == baseline.id) {
+            return RangeUsage(null, null, 0L, baseline, latest)
+        }
+        val used = latest.value - baseline.value
+        val span = latest.timestamp - baseline.timestamp
+        val days = span / 86_400_000.0
+        return RangeUsage(used, if (days >= 1.0 / 24) used / days else null, span, baseline, latest)
+    }
+
+    /** Every reading with the usage, time and rate since the reading before it (oldest first). */
+    fun intervals(readings: List<Reading>): List<Interval> {
+        val sorted = readings.sortedBy { it.timestamp }
+        return sorted.mapIndexed { i, r ->
+            val prev = sorted.getOrNull(i - 1)
+            if (prev == null) Interval(r, null, null, null, null)
+            else {
+                val used = r.value - prev.value
+                val span = r.timestamp - prev.timestamp
+                val days = span / 86_400_000.0
+                Interval(r, prev, used, span, if (days >= 1.0 / 24) used / days else null)
+            }
+        }
     }
 
     /**

@@ -115,10 +115,22 @@ class AppState(private val context: Context) {
 
     fun isDueNow(): Boolean = Reminders.isDueNow(context)
 
-    fun saveSettings(day: Int, hour: Int, minute: Int) {
+    fun saveSettings(
+        day: Int,
+        hour: Int,
+        minute: Int,
+        periodStart: Int,
+        periodEnd: Int,
+        unitPrice: Double,
+        currency: String,
+    ) {
         settings.submissionDay = day
         settings.reminderHour = hour
         settings.reminderMinute = minute
+        settings.periodStartDay = periodStart
+        settings.periodEndDay = periodEnd
+        settings.unitPrice = unitPrice
+        settings.currency = currency
         settingsVersion++
         Reminders.scheduleNext(context)
     }
