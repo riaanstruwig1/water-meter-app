@@ -6,17 +6,20 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 class MeterDatabase(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "meter.db", null, 1) {
+    SQLiteOpenHelper(context.applicationContext, "meter.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
+        createMeters(db)
         db.execSQL(
             """
             CREATE TABLE readings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                meter_id INTEGER NOT NULL DEFAULT 1,
                 timestamp INTEGER NOT NULL,
                 value REAL NOT NULL,
                 photo_path TEXT,
-                note TEXT
+                note TEXT,
+                id_source TEXT NOT NULL DEFAULT 'MANUAL'
             )
             """.trimIndent()
         )
@@ -32,7 +35,78 @@ class MeterDatabase(context: Context) :
         )
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    private fun createMeters(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE meters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                serial TEXT NOT NULL DEFAULT '',
+                whole_digits INTEGER NOT NULL DEFAULT 5,
+                decimal_digits INTEGER NOT NULL DEFAULT 4,
+                account_number TEXT NOT NULL DEFAULT ''
+            )
+            """.trimIndent()
+        )
+        db.execSQL("INSERT INTO meters (id, name) VALUES (1, 'Meter 1')")
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            createMeters(db)
+            db.execSQL("ALTER TABLE readings ADD COLUMN meter_id INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE readings ADD COLUMN id_source TEXT NOT NULL DEFAULT 'MANUAL'")
+        }
+    }
+
+    // ---------------------------------------------------------------- meters
+
+    fun allMeters(): List<Meter> {
+        val out = mutableListOf<Meter>()
+        readableDatabase.query("meters", null, null, null, null, null, "id ASC").use { c ->
+            val id = c.getColumnIndexOrThrow("id")
+            val name = c.getColumnIndexOrThrow("name")
+            val serial = c.getColumnIndexOrThrow("serial")
+            val whole = c.getColumnIndexOrThrow("whole_digits")
+            val dec = c.getColumnIndexOrThrow("decimal_digits")
+            val acc = c.getColumnIndexOrThrow("account_number")
+            while (c.moveToNext()) {
+                out += Meter(
+                    id = c.getLong(id),
+                    name = c.getString(name),
+                    serial = c.getString(serial),
+                    wholeDigits = c.getInt(whole),
+                    decimalDigits = c.getInt(dec),
+                    accountNumber = c.getString(acc),
+                )
+            }
+        }
+        return out
+    }
+
+    private fun meterValues(m: Meter) = ContentValues().apply {
+        put("name", m.name)
+        put("serial", m.serial)
+        put("whole_digits", m.wholeDigits)
+        put("decimal_digits", m.decimalDigits)
+        put("account_number", m.accountNumber)
+    }
+
+    fun insertMeter(m: Meter): Long = writableDatabase.insertOrThrow("meters", null, meterValues(m))
+
+    fun updateMeter(m: Meter) {
+        writableDatabase.update("meters", meterValues(m), "id = ?", arrayOf(m.id.toString()))
+    }
+
+    /** Deletes the meter and its readings; returns the photo paths of the removed readings. */
+    fun deleteMeter(id: Long): List<String> {
+        val photos = allReadings().filter { it.meterId == id }.mapNotNull { it.photoPath }
+        writableDatabase.delete("readings", "meter_id = ?", arrayOf(id.toString()))
+        writableDatabase.delete("meters", "id = ?", arrayOf(id.toString()))
+        return photos
+    }
+
+    // ---------------------------------------------------------------- readings
 
     fun allReadings(): List<Reading> {
         val out = mutableListOf<Reading>()
@@ -40,17 +114,21 @@ class MeterDatabase(context: Context) :
             "readings", null, null, null, null, null, "timestamp ASC"
         ).use { c ->
             val id = c.getColumnIndexOrThrow("id")
+            val meter = c.getColumnIndexOrThrow("meter_id")
             val ts = c.getColumnIndexOrThrow("timestamp")
             val v = c.getColumnIndexOrThrow("value")
             val p = c.getColumnIndexOrThrow("photo_path")
             val n = c.getColumnIndexOrThrow("note")
+            val src = c.getColumnIndexOrThrow("id_source")
             while (c.moveToNext()) {
                 out += Reading(
                     id = c.getLong(id),
+                    meterId = c.getLong(meter),
                     timestamp = c.getLong(ts),
                     value = c.getDouble(v),
                     photoPath = if (c.isNull(p)) null else c.getString(p),
                     note = if (c.isNull(n)) null else c.getString(n),
+                    idSource = runCatching { IdSource.valueOf(c.getString(src)) }.getOrDefault(IdSource.MANUAL),
                 )
             }
         }
@@ -59,10 +137,12 @@ class MeterDatabase(context: Context) :
 
     fun insertReading(r: Reading): Long {
         val cv = ContentValues().apply {
+            put("meter_id", r.meterId)
             put("timestamp", r.timestamp)
             put("value", r.value)
             put("photo_path", r.photoPath)
             put("note", r.note)
+            put("id_source", r.idSource.name)
         }
         return writableDatabase.insertOrThrow("readings", null, cv)
     }
@@ -70,6 +150,8 @@ class MeterDatabase(context: Context) :
     fun deleteReading(id: Long) {
         writableDatabase.delete("readings", "id = ?", arrayOf(id.toString()))
     }
+
+    // ---------------------------------------------------------------- submissions
 
     fun allSubmissions(): List<Submission> {
         val out = mutableListOf<Submission>()
@@ -79,28 +161,19 @@ class MeterDatabase(context: Context) :
             val id = c.getColumnIndexOrThrow("id")
             val m = c.getColumnIndexOrThrow("month")
             val at = c.getColumnIndexOrThrow("submitted_at")
-            val r = c.getColumnIndexOrThrow("reading_id")
             while (c.moveToNext()) {
-                out += Submission(
-                    id = c.getLong(id),
-                    month = c.getString(m),
-                    submittedAt = c.getLong(at),
-                    readingId = if (c.isNull(r)) null else c.getLong(r),
-                )
+                out += Submission(id = c.getLong(id), month = c.getString(m), submittedAt = c.getLong(at))
             }
         }
         return out
     }
 
-    fun markSubmitted(month: String, readingId: Long?, at: Long) {
+    fun markSubmitted(month: String, at: Long) {
         val cv = ContentValues().apply {
             put("month", month)
             put("submitted_at", at)
-            put("reading_id", readingId)
         }
-        writableDatabase.insertWithOnConflict(
-            "submissions", null, cv, SQLiteDatabase.CONFLICT_REPLACE
-        )
+        writableDatabase.insertWithOnConflict("submissions", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun unmarkSubmitted(month: String) {

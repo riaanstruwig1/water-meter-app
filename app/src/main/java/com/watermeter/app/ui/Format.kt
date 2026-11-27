@@ -8,7 +8,7 @@ val dateTimeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH
 val dateFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 val monthFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
-fun fmtReading(kl: Double): String = String.format(Locale.getDefault(), "%.3f kL", kl)
+fun fmtReading(kl: Double): String = String.format(Locale.getDefault(), "%.4f kL", kl)
 
 /** Usage in kL plus litres, e.g. "12.345 kL (12 345 L)". */
 fun fmtUsage(kl: Double): String {

@@ -57,7 +57,8 @@ class UsageTest {
 
     @Test fun usageSinceLastSubmission() {
         val readings = listOf(r(1, "2026-10-25T08:00", 100.0), r(2, "2026-11-10T08:00", 107.25))
-        val subs = listOf(Submission(month = "2026-10", submittedAt = 1, readingId = 1))
+        val submittedAt = LocalDateTime.parse("2026-10-25T09:00").toInstant(zone).toEpochMilli()
+        val subs = listOf(Submission(month = "2026-10", submittedAt = submittedAt))
         assertEquals(7.25, Usage.sinceLastSubmission(readings, subs)!!, 1e-9)
         assertNull(Usage.sinceLastSubmission(readings, emptyList()))
     }

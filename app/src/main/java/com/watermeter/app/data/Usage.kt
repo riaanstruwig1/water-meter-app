@@ -63,14 +63,15 @@ object Usage {
         return MonthUsage(month, used, perDay, baseline, latest)
     }
 
-    /** kL used since the reading that was last marked as submitted, or null. */
+    /**
+     * kL used since the last submission: latest reading minus the last reading taken at or
+     * before the most recent submission. Pass the readings of a single meter.
+     */
     fun sinceLastSubmission(readings: List<Reading>, submissions: List<Submission>): Double? {
-        val lastSubmitted = submissions
-            .filter { it.readingId != null }
-            .maxByOrNull { it.submittedAt } ?: return null
-        val base = readings.firstOrNull { it.id == lastSubmitted.readingId } ?: return null
-        val latest = readings.maxByOrNull { it.timestamp } ?: return null
-        if (latest.id == base.id) return 0.0
+        val lastSubmittedAt = submissions.maxOfOrNull { it.submittedAt } ?: return null
+        val sorted = readings.sortedBy { it.timestamp }
+        val base = sorted.lastOrNull { it.timestamp <= lastSubmittedAt } ?: return null
+        val latest = sorted.last()
         return latest.value - base.value
     }
 }
