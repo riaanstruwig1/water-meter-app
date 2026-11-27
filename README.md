@@ -13,6 +13,8 @@ An Android app for keeping track of the house water meter.
 - **Readings table**, per meter: date and time of each reading, the meter value, kL used since the previous reading, the days and hours in between, kL per day and the cost. A totals row shows the whole period.
 - **Price per kL** (set in *Settings*) is used for the cost of every reading and period, plus a projected cost for the current period.
 - **One chart for all meters**: water used so far in the period, a coloured line per meter.
+- **Photo records.** Every reading keeps its photo in the app, with date and time, under *Photo history*. A copy with the meter name, date, time and reading stamped on it is also saved to the phone's gallery in *Pictures/Water Meter* (Android 10+, can be switched off in Settings).
+- **Serial learning.** The first barcode seen on a meter becomes its serial, and serial-label text from later photos is remembered too, so a meter is still recognised when its barcode is covered or partly unreadable.
 - Rename a meter by tapping the pencil next to its name, or under *Meters*.
 - **Monthly submission date.** In *Settings* choose the day of the month (1–31; in shorter months it falls on the last day) and the time of the reminder.
 - **Submission reminder.** On that day you get a notification, and opening the app shows a pop-up listing the latest reading of every meter. Nothing is sent automatically: use *Share readings and photos* to send them via email, WhatsApp or your municipality's app, then tap *Mark as submitted*. Until you do, the reminder repeats daily.

@@ -77,7 +77,13 @@ internal fun MetersScreen(state: AppState, onDone: () -> Unit) {
                 Card(Modifier.fillMaxWidth().clickable { editing = m }) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(m.name, fontWeight = FontWeight.Bold)
-                        Text(if (m.serial.isBlank()) "No serial saved" else "Serial ${m.serial}")
+                        Text(if (m.serial.isBlank()) "No serial yet (learned from the first photo with a barcode)" else "Serial ${m.serial}")
+                        if (m.serialHints.isNotEmpty()) {
+                            Text(
+                                "Also recognised by: " + m.serialHints.joinToString(", "),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         Text("${m.wholeDigits} black + ${m.decimalDigits} red wheels", style = MaterialTheme.typography.bodySmall)
                         if (m.accountNumber.isNotBlank()) Text("Account ${m.accountNumber}", style = MaterialTheme.typography.bodySmall)
                         latest?.let { Text("Latest ${fmtReading(it.value)} on ${fmtWhen(it.timestamp)}", style = MaterialTheme.typography.bodySmall) }

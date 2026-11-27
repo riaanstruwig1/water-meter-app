@@ -6,7 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 class MeterDatabase(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "meter.db", null, 2) {
+    SQLiteOpenHelper(context.applicationContext, "meter.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createMeters(db)
@@ -44,7 +44,8 @@ class MeterDatabase(context: Context) :
                 serial TEXT NOT NULL DEFAULT '',
                 whole_digits INTEGER NOT NULL DEFAULT 5,
                 decimal_digits INTEGER NOT NULL DEFAULT 4,
-                account_number TEXT NOT NULL DEFAULT ''
+                account_number TEXT NOT NULL DEFAULT '',
+                serial_hints TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent()
         )
@@ -56,6 +57,9 @@ class MeterDatabase(context: Context) :
             createMeters(db)
             db.execSQL("ALTER TABLE readings ADD COLUMN meter_id INTEGER NOT NULL DEFAULT 1")
             db.execSQL("ALTER TABLE readings ADD COLUMN id_source TEXT NOT NULL DEFAULT 'MANUAL'")
+        } else if (oldVersion < 3) {
+            // Version 2 databases already have meters, but without learned serial hints.
+            db.execSQL("ALTER TABLE meters ADD COLUMN serial_hints TEXT NOT NULL DEFAULT ''")
         }
     }
 
@@ -70,6 +74,7 @@ class MeterDatabase(context: Context) :
             val whole = c.getColumnIndexOrThrow("whole_digits")
             val dec = c.getColumnIndexOrThrow("decimal_digits")
             val acc = c.getColumnIndexOrThrow("account_number")
+            val hints = c.getColumnIndexOrThrow("serial_hints")
             while (c.moveToNext()) {
                 out += Meter(
                     id = c.getLong(id),
@@ -78,6 +83,7 @@ class MeterDatabase(context: Context) :
                     wholeDigits = c.getInt(whole),
                     decimalDigits = c.getInt(dec),
                     accountNumber = c.getString(acc),
+                    serialHints = c.getString(hints).split(',').filter { it.isNotBlank() },
                 )
             }
         }
@@ -90,6 +96,7 @@ class MeterDatabase(context: Context) :
         put("whole_digits", m.wholeDigits)
         put("decimal_digits", m.decimalDigits)
         put("account_number", m.accountNumber)
+        put("serial_hints", m.serialHints.joinToString(","))
     }
 
     fun insertMeter(m: Meter): Long = writableDatabase.insertOrThrow("meters", null, meterValues(m))

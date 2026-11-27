@@ -42,4 +42,9 @@ class Settings(context: Context) {
     var currency: String
         get() = prefs.getString("currency", "R") ?: "R"
         set(v) = prefs.edit().putString("currency", v).apply()
+
+    /** Save a date/time-stamped copy of every reading photo to the phone's gallery. */
+    var saveToGallery: Boolean
+        get() = prefs.getBoolean("save_to_gallery", true)
+        set(v) = prefs.edit().putBoolean("save_to_gallery", v).apply()
 }

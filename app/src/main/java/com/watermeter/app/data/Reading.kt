@@ -14,6 +14,8 @@ data class Meter(
     val wholeDigits: Int = 5,
     val decimalDigits: Int = 4,
     val accountNumber: String = "",
+    /** Parts of the serial the app has learned from earlier photos (printed text, other barcodes). */
+    val serialHints: List<String> = emptyList(),
 )
 
 /** How the meter for a reading was identified. */

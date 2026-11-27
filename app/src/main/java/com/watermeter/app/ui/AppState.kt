@@ -12,13 +12,21 @@ import com.watermeter.app.data.Reading
 import com.watermeter.app.data.Schedule
 import com.watermeter.app.data.Settings
 import com.watermeter.app.data.Submission
+import com.watermeter.app.data.SerialLearner
 import com.watermeter.app.reminder.Reminders
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import java.time.format.DateTimeFormatter
 import java.io.File
 import java.time.YearMonth
 
 /** Holds the app's data for the UI. Data is small, so the database is read directly. */
 class AppState(private val context: Context) {
     private val db = MeterDatabase(context)
+    /** For background work that must finish even after leaving a screen (e.g. gallery copies). */
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val settings = Settings(context)
 
     var meters by mutableStateOf<List<Meter>>(emptyList())
@@ -60,11 +68,19 @@ class AppState(private val context: Context) {
 
     fun latestFor(meterId: Long): Reading? = readingsFor(meterId).maxByOrNull { it.timestamp }
 
-    fun addReading(meterId: Long, value: Double, photoPath: String?, note: String?, source: IdSource) {
+    fun addReading(
+        meterId: Long,
+        value: Double,
+        photoPath: String?,
+        note: String?,
+        source: IdSource,
+        scan: ScanResult? = null,
+    ) {
+        val now = System.currentTimeMillis()
         db.insertReading(
             Reading(
                 meterId = meterId,
-                timestamp = System.currentTimeMillis(),
+                timestamp = now,
                 value = value,
                 photoPath = photoPath,
                 note = note,
@@ -72,7 +88,28 @@ class AppState(private val context: Context) {
             )
         )
         selectedMeterId = meterId
+        if (scan != null) learnSerial(meterId, scan, value)
         reload()
+
+        val m = meter(meterId)
+        if (photoPath != null && m != null && settings.saveToGallery) {
+            val stamp = Schedule.toLocal(now)
+            val fileName = "${m.name.replace(Regex("[^A-Za-z0-9]+"), "_")}_" +
+                stamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm")) + ".jpg"
+            val lines = listOf(
+                "${m.name}  ·  ${fmtReading(value)}",
+                stamp.format(dateTimeFmt) + if (m.serial.isNotBlank()) "  ·  SN ${m.serial}" else "",
+            )
+            background.launch { Photos.saveStampedToGallery(context, photoPath, fileName, lines) }
+        }
+    }
+
+    /** Remembers the barcode / printed serial seen on a photo the user confirmed for [meterId]. */
+    private fun learnSerial(meterId: Long, scan: ScanResult, value: Double) {
+        val m = meter(meterId) ?: return
+        val readingDigits = String.format(java.util.Locale.ROOT, "%.4f", value).filter { it.isDigit() }.trimStart('0')
+        val learned = SerialLearner.learn(m, scan.barcodes, scan.labelFragments, readingDigits, meters)
+        if (learned != m) db.updateMeter(learned)
     }
 
     fun deleteReading(r: Reading) {

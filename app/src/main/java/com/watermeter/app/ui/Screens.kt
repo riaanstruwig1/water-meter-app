@@ -55,6 +55,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -92,6 +93,7 @@ internal sealed interface Screen {
     data class Detail(val readingId: Long) : Screen
     data object Settings : Screen
     data object Meters : Screen
+    data class Photos(val meterId: Long) : Screen
 }
 
 @Composable
@@ -155,6 +157,7 @@ fun AppRoot(state: AppState, openedFromReminder: MutableState<Boolean>) {
             onSettings = { screen = Screen.Settings },
             onMeters = { screen = Screen.Meters },
             onSubmit = { showSubmit = true },
+            onPhotos = { screen = Screen.Photos(state.selectedMeterId) },
         )
         is Screen.Add -> AddReadingScreen(
             state = state,
@@ -183,6 +186,11 @@ fun AppRoot(state: AppState, openedFromReminder: MutableState<Boolean>) {
         }
         Screen.Settings -> SettingsScreen(state, onDone = { screen = Screen.Home })
         Screen.Meters -> MetersScreen(state, onDone = { screen = Screen.Home })
+        is Screen.Photos -> PhotoHistoryScreen(
+            state, s.meterId,
+            onBack = { screen = Screen.Home },
+            onOpen = { screen = Screen.Detail(it.id) },
+        )
     }
 
     if (showSubmit) SubmitDialog(state, onDismiss = { showSubmit = false })
@@ -199,6 +207,7 @@ private fun HomeScreen(
     onSettings: () -> Unit,
     onMeters: () -> Unit,
     onSubmit: () -> Unit,
+    onPhotos: () -> Unit,
 ) {
     val settingsVersion = state.settingsVersion
     val s = state.settings
@@ -394,7 +403,11 @@ private fun HomeScreen(
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(onClick = onPhotos) { Text("Photo history") }
                     OutlinedButton(onClick = onPickPhoto) { Text("Photo from gallery") }
                     if (day > 0) OutlinedButton(onClick = onSubmit) { Text("Submit readings") }
                 }
@@ -503,6 +516,7 @@ private fun SettingsScreen(state: AppState, onDone: () -> Unit) {
     var periodEnd by remember { mutableIntStateOf(s.periodEndDay) }
     var priceText by remember { mutableStateOf(if (s.unitPrice > 0) s.unitPrice.toString() else "") }
     var currency by remember { mutableStateOf(s.currency) }
+    var saveToGallery by remember { mutableStateOf(s.saveToGallery) }
     val price = if (priceText.isBlank()) 0.0 else parseReading(priceText)
     val context = LocalContext.current
 
@@ -569,10 +583,26 @@ private fun SettingsScreen(state: AppState, onDone: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
             )
 
+            HorizontalDivider()
+            Text("Photos", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Save a copy of every reading photo to the phone's gallery, with the meter, " +
+                        "date, time and reading stamped on it",
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = saveToGallery, onCheckedChange = { saveToGallery = it })
+            }
+            Text(
+                "Photos are always kept in the app with their reading, under Photo history.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
             Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
 
             HorizontalDivider()
             Button(enabled = price != null, onClick = {
+                s.saveToGallery = saveToGallery
                 state.saveSettings(day, hour, minute, periodStart, periodEnd, price ?: 0.0, currency.trim().ifBlank { "R" })
                 onDone()
             }) { Text("Save") }

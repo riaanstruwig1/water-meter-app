@@ -163,6 +163,17 @@ object ReadingParser {
         }.maxByOrNull { it.score }
     }
 
+    /**
+     * Digit groups from OCR lines that look like a serial-number label: lines with "SN" / "S/N",
+     * or a single long number (7+ digits). Used to learn a meter's serial.
+     */
+    fun labelFragments(lines: List<String>): List<String> =
+        lines.filter { line ->
+            val compact = line.replace(" ", "")
+            Regex("S/?N", RegexOption.IGNORE_CASE).containsMatchIn(compact) ||
+                compact.count { it.isDigit() } >= 7 && compact.all { it.isDigit() }
+        }.let { serialFragments(it) }
+
     /** Digit strings in OCR text that could be (part of) a printed serial number. */
     fun serialFragments(lines: List<String>): List<String> =
         lines.flatMap { line ->
@@ -179,32 +190,35 @@ object MeterMatcher {
 
     private fun digits(s: String) = s.filter { it.isDigit() }
 
+    /** Everything known about a meter's identity: its serial plus learned hints. */
+    private fun ids(m: Meter): List<String> =
+        (listOf(m.serial) + m.serialHints).map(::digits).filter { it.length >= 4 }.distinct()
+
     /**
      * Finds which meter a photo shows.
      *
      * A barcode is trusted when its digits end with the meter serial's digits or vice versa
-     * (labels often print a prefix such as "SN"). Printed-serial text from OCR is weaker:
-     * a fragment of at least 4 digits matching the start or end of a serial is enough, since
-     * part of the label may be covered.
+     * (labels often print a prefix such as "SN"), or equal a barcode learned earlier.
+     * Printed-serial text from OCR is weaker: a fragment of at least 4 digits matching the
+     * start or end of a serial or learned hint is enough, since part of the label may be covered.
      */
     fun match(meters: List<Meter>, barcodes: List<String>, textFragments: List<String>): MeterMatch? {
-        val withSerial = meters.filter { digits(it.serial).length >= 4 }
         for (code in barcodes.map(::digits).filter { it.length >= 4 }) {
-            withSerial.firstOrNull { m ->
-                val s = digits(m.serial)
-                code.endsWith(s) || s.endsWith(code)
+            meters.firstOrNull { m ->
+                ids(m).any { s -> code.endsWith(s) || s.endsWith(code) }
             }?.let { return MeterMatch(it, IdSource.BARCODE) }
         }
         val frags = textFragments.map(::digits).filter { it.length >= 4 }
-        val scored = withSerial.map { m ->
-            val s = digits(m.serial)
-            val best = frags.maxOfOrNull { f ->
-                when {
-                    s == f -> 100
-                    s.endsWith(f) || s.startsWith(f) -> f.length
-                    f.endsWith(s) -> s.length
-                    else -> 0
-                }
+        val scored = meters.map { m ->
+            val best = ids(m).maxOfOrNull { s ->
+                frags.maxOfOrNull { f ->
+                    when {
+                        s == f -> 100
+                        s.endsWith(f) || s.startsWith(f) -> f.length
+                        f.endsWith(s) || f.startsWith(s) -> s.length
+                        else -> 0
+                    }
+                } ?: 0
             } ?: 0
             m to best
         }.filter { it.second >= 4 }
@@ -212,5 +226,53 @@ object MeterMatcher {
         // Ambiguous when two meters match equally well.
         if (scored.count { it.second == top.second } > 1) return null
         return MeterMatch(top.first, IdSource.PRINTED_SERIAL)
+    }
+}
+
+/**
+ * Learns a meter's serial from photos the user has confirmed by saving a reading.
+ *
+ * - The first barcode seen becomes the meter's serial if it has none.
+ * - Other barcodes and serial-label text fragments are kept as hints, so a later photo with
+ *   the barcode covered can still be recognised from whatever part of the label is readable.
+ */
+object SerialLearner {
+    private const val MAX_HINTS = 12
+
+    /** True if [fragment] is probably the meter reading rather than part of the serial. */
+    fun looksLikeReading(fragment: String, readingDigits: String): Boolean {
+        val f = fragment.trimStart('0')
+        val r = readingDigits.trimStart('0')
+        if (f.isEmpty() || r.isEmpty()) return true
+        return r.contains(f) || f.contains(r.take(4))
+    }
+
+    fun learn(
+        meter: Meter,
+        barcodes: List<String>,
+        labelFragments: List<String>,
+        readingDigits: String,
+        otherMeters: List<Meter>,
+    ): Meter {
+        val code = barcodes.firstOrNull { b -> b.count { it.isDigit() } >= 4 }
+        var serial = meter.serial
+        if (serial.isBlank() && code != null) serial = code
+
+        val serialDigits = serial.filter { it.isDigit() }
+        val othersIds = otherMeters.filter { it.id != meter.id }
+            .flatMap { listOf(it.serial) + it.serialHints }
+            .map { s -> s.filter { it.isDigit() } }
+            .filter { it.length >= 4 }
+
+        val candidates = (barcodes + labelFragments)
+            .map { s -> s.filter { it.isDigit() } }
+            .filter { it.length >= 4 }
+            // Not the reading itself, nothing already covered by the serial, nothing that belongs to another meter.
+            .filterNot { looksLikeReading(it, readingDigits) }
+            .filterNot { serialDigits.contains(it) }
+            .filterNot { f -> othersIds.any { o -> o.contains(f) || f.contains(o) } }
+
+        val hints = (meter.serialHints + candidates).distinct().takeLast(MAX_HINTS)
+        return meter.copy(serial = serial, serialHints = hints)
     }
 }

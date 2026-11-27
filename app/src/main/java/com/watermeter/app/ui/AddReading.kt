@@ -216,7 +216,7 @@ internal fun AddReadingScreen(
                     enabled = value != null && meter != null,
                     onClick = {
                         val source = match?.takeIf { it.meter.id == meterId }?.source ?: IdSource.MANUAL
-                        state.addReading(meterId, value!!, photoPath, note.ifBlank { null }, source)
+                        state.addReading(meterId, value!!, photoPath, note.ifBlank { null }, source, scan)
                         onSaved()
                     },
                 ) { Text("Save reading") }
@@ -254,7 +254,12 @@ private fun MeterStatus(
         }
         barcode != null -> StatusCard(warn) {
             Text("New barcode: $barcode", fontWeight = FontWeight.Bold)
-            Text("It doesn't match any of your meters yet.")
+            Text(
+                if (selected != null && selected.serial.isBlank())
+                    "It doesn't match any meter yet. It will be learned as ${selected.name}'s serial when you save, " +
+                        "or add it as a new meter."
+                else "It doesn't match any of your meters yet."
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (selected != null) {
                     OutlinedButton(onClick = { onAssignSerial(barcode) }) {

@@ -26,6 +26,8 @@ import kotlin.coroutines.resumeWithException
 data class ScanResult(
     val barcodes: List<String>,
     val serialFragments: List<String>,
+    /** Fragments from lines that look like the serial label, used to learn the serial. */
+    val labelFragments: List<String>,
     val match: MeterMatch?,
     /** Best reading guess per meter id (digit layout differs per meter). */
     val guesses: Map<Long, ReadingGuess>,
@@ -46,7 +48,7 @@ object MeterScanner {
 
     suspend fun scan(photoPath: String, meters: List<Meter>): ScanResult = withContext(Dispatchers.Default) {
         val upright = Photos.decode(photoPath, 1600)
-            ?: return@withContext ScanResult(emptyList(), emptyList(), null, emptyMap())
+            ?: return@withContext ScanResult(emptyList(), emptyList(), emptyList(), null, emptyMap())
 
         val barcodes = runCatching {
             val scanner = BarcodeScanning.getClient()
@@ -90,7 +92,7 @@ object MeterScanner {
                 .maxByOrNull { it.score }
         }.filterValues { it != null }.mapValues { it.value!! }
 
-        ScanResult(barcodes, fragments, match, guesses)
+        ScanResult(barcodes, fragments, ReadingParser.labelFragments(lines), match, guesses)
     }
 
     private fun rotate(src: Bitmap, degrees: Int): Bitmap {
