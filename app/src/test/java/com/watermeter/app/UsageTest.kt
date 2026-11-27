@@ -42,7 +42,7 @@ class UsageTest {
         assertEquals(12.0, u.usedKl!!, 1e-9)
         assertEquals(1L, u.baseline!!.id)
         assertEquals(3L, u.latest!!.id)
-        assertEquals(0.5, u.perDayKl!!, 1e-9) // 12 kL over 24 days
+        assertEquals(12.0 / 23, u.perDayKl!!, 1e-9) // 12 kL over 23 days (28 Oct to 20 Nov)
     }
 
     @Test fun firstMonthUsesFirstReadingInMonth() {
